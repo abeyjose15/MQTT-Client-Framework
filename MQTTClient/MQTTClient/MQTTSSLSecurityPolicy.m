@@ -52,9 +52,9 @@ static id SSLPublicKeyForCertificate(NSData *certificate) {
 
     policy = SecPolicyCreateBasicX509();
     __Require_noErr_Quiet(SecTrustCreateWithCertificates(tempCertificates, policy, &allowedTrust), _out);
-    __Require_noErr_Quiet(SecTrustEvaluate(allowedTrust, &result), _out);
+    __Require_noErr_Quiet(SecTrustEvaluateWithError(allowedTrust, &result), _out);
 
-    allowedPublicKey = (__bridge_transfer id)SecTrustCopyPublicKey(allowedTrust);
+    allowedPublicKey = (__bridge_transfer id)SecTrustCopyKey(allowedTrust);
 
     _out:
     if (allowedTrust) {
@@ -79,7 +79,7 @@ static id SSLPublicKeyForCertificate(NSData *certificate) {
 static BOOL SSLServerTrustIsValid(SecTrustRef serverTrust) {
     BOOL isValid = NO;
     SecTrustResultType result;
-    __Require_noErr_Quiet(SecTrustEvaluate(serverTrust, &result), _out);
+    __Require_noErr_Quiet(SecTrustEvaluateWithError(serverTrust, &result), _out);
 
     isValid = (result == kSecTrustResultUnspecified      // The OS trusts this certificate implicitly.
                 || result == kSecTrustResultProceed);    // The user explicitly told the OS to trust it.
@@ -95,7 +95,7 @@ static NSArray * SSLCertificateTrustChainForServerTrust(SecTrustRef serverTrust)
     NSMutableArray *trustChain = [NSMutableArray arrayWithCapacity:(NSUInteger)certificateCount];
 
     for (CFIndex i = 0; i < certificateCount; i++) {
-        SecCertificateRef certificate = SecTrustGetCertificateAtIndex(serverTrust, i);
+        SecCertificateRef certificate = SecTrustCopyCertificateChain(serverTrust, i);
         [trustChain addObject:(__bridge_transfer NSData *)SecCertificateCopyData(certificate)];
     }
 
@@ -107,7 +107,7 @@ static NSArray * SSLPublicKeyTrustChainForServerTrust(SecTrustRef serverTrust) {
     CFIndex certificateCount = SecTrustGetCertificateCount(serverTrust);
     NSMutableArray *trustChain = [NSMutableArray arrayWithCapacity:(NSUInteger)certificateCount];
     for (CFIndex i = 0; i < certificateCount; i++) {
-        SecCertificateRef certificate = SecTrustGetCertificateAtIndex(serverTrust, i);
+        SecCertificateRef certificate = SecTrustCopyCertificateChain(serverTrust, i);
 
         SecCertificateRef someCertificates[] = {certificate};
         CFArrayRef certificates = CFArrayCreate(NULL, (const void **)someCertificates, 1, NULL);
@@ -116,9 +116,9 @@ static NSArray * SSLPublicKeyTrustChainForServerTrust(SecTrustRef serverTrust) {
         __Require_noErr_Quiet(SecTrustCreateWithCertificates(certificates, policy, &trust), _out);
 
         SecTrustResultType result;
-        __Require_noErr_Quiet(SecTrustEvaluate(trust, &result), _out);
+        __Require_noErr_Quiet(SecTrustEvaluateWithError(trust, &result), _out);
 
-        [trustChain addObject:(__bridge_transfer id)SecTrustCopyPublicKey(trust)];
+        [trustChain addObject:(__bridge_transfer id)SecTrustCopyKey(trust)];
 
         _out:
         if (trust) {
